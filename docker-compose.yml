@@ -10,112 +10,64 @@ services:
       POSTGRES_DB: mydatabase
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+    networks:
+      - defnetwork
     ports:
       - '127.0.0.1:5432:5432'
 
-  backend:
+  public_api:
     build:
       context: backend
-      dockerfile: ./backend.Dockerfile
-    container_name: backend
+      dockerfile: ./public_api.Dockerfile
+    container_name: public_api
     ports:
       - "8090:8090"
-#    command: bash -c "cd /backend; python start_db.py; python /backend/scripts/ETL.py; uvicorn main:app --host 0.0.0.0 --port 8090;"
-    command: bash -c "cd /backend; uvicorn main:app --host 0.0.0.0 --port 8090 --reload --forwarded-allow-ips='*' --proxy-headers;"
+    #    command: bash -c "cd /backend; python start_db.py; python /backend/scripts/ETL.py; uvicorn main:app --host 0.0.0.0 --port 8090;"
+    entrypoint: [ "bash", "-c", "cd /public_api; python3 create_db.py;" ]
+    command: bash -c "cd /public_api; uvicorn main:app --host 0.0.0.0 --port 8090 --reload;"
     env_file:
       - .env
+    networks:
+      - defnetwork
     volumes:
-      - ./backend:/backend
-      - ./backend/logs:/backend/logs
+      - ./public_api:/public_api
+      - ./public_api/logs:/public_api/logs
     environment:
-      - PYTHONPATH=/backend
-    depends_on:
-      - db
-      - elasticsearch
+      - PYTHONPATH=/public_api
 
-  tests:
+  private_api:
     build:
       context: backend
-      dockerfile: ./backend.Dockerfile
-    container_name: tests_michael
-    command: bash -c "cd /backend; python user_tests.py; python tests/ui_tests.py"
+      dockerfile: ./private_api.Dockerfile
+    container_name: private_api
+    ports:
+      - "127.0.0.1:8091:8091"
+    #    command: bash -c "cd /backend; python start_db.py; python /backend/scripts/ETL.py; uvicorn main:app --host 0.0.0.0 --port 8090;"
+    #    entrypoint: [ "bash", "-c", "cd /private_api; python3 create_db.py;" ]
+    command: bash -c "cd /private_api; uvicorn main:app --host 0.0.0.0 --port 8090 --reload;"
     env_file:
       - .env
+    networks:
+      - defnetwork
     volumes:
-      - ./backend:/backend
+      - ./private_api:/private_api
+      - ./private_api/logs:/private_api/logs
     environment:
-      - PYTHONPATH=/backend
-    depends_on:
-      - db
-      - backend
+      - PYTHONPATH=/private_api
 
-  frontend:
-    image: node:20.10.0
-    container_name: frontend_BLOODY_VLADI
+  minio:
+    image: docker.io/bitnami/minio:2022
     ports:
-      - '127.0.0.1:3000:3000'
-    command: bash -c "cd /frontend/for_vlad; npm install ; npm run build ; npm run start"
-#    entrypoint: ["bash", "-c", "cd /frontend/for_vlad; npm install ; npm run build ; npm run start"]
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - defnetwork
     volumes:
-      - ./frontend/for_vlad:/frontend/for_vlad
-
-  master:
-    image: locustio/locust
-    ports:
-      - "8089:8089"
-    volumes:
-      - ./:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --master -H http://master:8089
-
-  worker:
-    image: locustio/locust
-    volumes:
-      - ./:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --worker --master-host master
-
-  elasticsearch:
-    image: elasticsearch:7.16.1
-    volumes:
-      - ./configs/elasticsearch/config.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
-      - ./docker_volumes/elasticsearch/data:/var/lib/elasticsearch/data
+      - 'minio_data:/data'
     environment:
-      ES_JAVA_OPTS: "-Xmx512m -Xms512m"
-      ELASTIC_USERNAME: "elastic"
-      ELASTIC_PASSWORD: "MyPw123"
-      discovery.type: single-node
-    ports:
-      - "127.0.0.1:9200:9200"
-
-  kibana:
-    image: kibana:7.16.1
-    depends_on:
-      - elasticsearch
-    volumes:
-      - ./configs/kibana/config.yml:/usr/share/kibana/config/kibana.yml:ro
-    ports:
-      - "5601:5601"
-
-  filebeat:
-    build:
-      context: ./filebeat
-    container_name: filebeat
-    volumes:
-      - ./backend/logs:/backend/logs
-    depends_on:
-      - elasticsearch
-      - kibana
-
-  web:
-    container_name: "web"
-    image: nginx:alpine
-    depends_on:
-      - backend
-    ports:
-      - "8082:80"
-    volumes:
-      - ./configs/conf.d:/etc/nginx/conf.d
-
-  redis:
-    image: redis:latest
-    ports:
-      - '127.0.0.1:6379:6379'
+      - MINIO_ROOT_USER=your_username
+      - MINIO_ROOT_PASSWORD=your_pasword
+      - MINIO_DEFAULT_BUCKETS=3
+networks:
+  defnetwork:
+    driver: bridge
