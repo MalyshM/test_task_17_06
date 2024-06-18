@@ -1,5 +1,8 @@
+import time
+
 import psycopg2
 def meme_db_create():
+    time.sleep(10)
     conn = psycopg2.connect(dbname="postgres", user="postgres", password="admin", host="db")
     cursor = conn.cursor()
 

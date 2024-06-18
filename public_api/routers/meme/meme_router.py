@@ -2,7 +2,7 @@ import os
 from typing import Annotated, List
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, File
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -37,8 +37,7 @@ async def create_meme(image: Annotated[bytes, File()], name: dict = Depends(name
                             detail="Meme with that name already exists")
     url = f'{PRIVATE_API_URL}{name["name"]}'
     data = {'image': image}
-    response = await make_request(url=url, crud_type=0, data=data)
-    print(response)
+    await make_request(url=url, crud_type=0, data=data)
     db_item = Meme(name=name["name"], link=S3_SERVER_URL + name["name"])
     db.add(db_item)
     await db.commit()
@@ -55,7 +54,7 @@ async def create_meme(image: Annotated[bytes, File()], name: dict = Depends(name
 async def read_item(id: int, db: AsyncSession = Depends(connect_db)):
     res = await db.get(Meme, id)
     if res is None:
-        raise HTTPException(status_code=status.HTTP_404,
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Meme with that id not found")
     return res
 
@@ -126,9 +125,7 @@ async def update_meme(image: Annotated[bytes, File()], id: dict = Depends(id_is_
                             detail="Meme with that name already exists")
     url = f'{PRIVATE_API_URL}{name["name"]}'
     data = {'image': image}
-    response = await make_request(url=url, crud_type=1, data=data)
-    print(response)
-
+    await make_request(url=url, crud_type=1, data=data)
     db_item = await db.get(Meme, id['id'])
     db_item.name = name["name"]
     db_item.link = S3_SERVER_URL + name["name"]
@@ -137,7 +134,6 @@ async def update_meme(image: Annotated[bytes, File()], id: dict = Depends(id_is_
     return db_item
 
 
-# todo этот роут и в приватной апишке сделать роут удаления
 @meme_router.delete("/{id}", status_code=status.HTTP_200_OK, summary='Удалить мем',
                     responses={
                         200: {
@@ -164,8 +160,7 @@ async def delete_meme(id: dict = Depends(id_is_exists),
                             detail="Meme with that id not found")
     meme = await db.get(Meme, id['id'])
     url = f'{PRIVATE_API_URL}{meme.name}'
-    response = await make_request(url=url, crud_type=2)
-    print(response)
+    await make_request(url=url, crud_type=2)
     await db.delete(meme)
     await db.commit()
     return {"message": "Meme deleted successfully"}

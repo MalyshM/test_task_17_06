@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 Base = declarative_base()
 metadata = Base.metadata
 
-DATABASE_URL = "postgresql+asyncpg://postgres:admin@localhost/meme"
+DATABASE_URL = "postgresql+asyncpg://postgres:admin@db/meme"
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 

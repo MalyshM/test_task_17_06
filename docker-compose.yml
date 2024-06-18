@@ -10,64 +10,43 @@ services:
       POSTGRES_DB: mydatabase
     volumes:
       - ./pgdata:/var/lib/postgresql/data
-    networks:
-      - defnetwork
     ports:
-      - '127.0.0.1:5432:5432'
+      - '5432:5432'
 
   public_api:
     build:
-      context: backend
+      context: public_api
       dockerfile: ./public_api.Dockerfile
     container_name: public_api
     ports:
       - "8090:8090"
     #    command: bash -c "cd /backend; python start_db.py; python /backend/scripts/ETL.py; uvicorn main:app --host 0.0.0.0 --port 8090;"
-    entrypoint: [ "bash", "-c", "cd /public_api; python3 create_db.py;" ]
-    command: bash -c "cd /public_api; uvicorn main:app --host 0.0.0.0 --port 8090 --reload;"
+#    entrypoint: [ "bash", "-c", "cd /public_api; python3 create_db.py;" ]
+    command: bash -c "if [ ! -f /public_api/db_created.flag ]; then cd /public_api; python3 create_db.py && touch /public_api/db_created.flag; fi; uvicorn main:app --host 0.0.0.0 --port 8090 --reload;"
     env_file:
       - public_api/.env
-    networks:
-      - defnetwork
     volumes:
       - ./public_api:/public_api
       - ./public_api/logs:/public_api/logs
     environment:
       - PYTHONPATH=/public_api
+    depends_on:
+      - db
 
   private_api:
     build:
-      context: backend
+      context: private_api
       dockerfile: ./private_api.Dockerfile
     container_name: private_api
     ports:
       - "127.0.0.1:8091:8091"
     #    command: bash -c "cd /backend; python start_db.py; python /backend/scripts/ETL.py; uvicorn main:app --host 0.0.0.0 --port 8090;"
     #    entrypoint: [ "bash", "-c", "cd /private_api; python3 create_db.py;" ]
-    command: bash -c "cd /private_api; uvicorn main:app --host 0.0.0.0 --port 8090 --reload;"
+    command: bash -c "cd /private_api; uvicorn main:app --host 0.0.0.0 --port 8091 --reload;"
     env_file:
       - public_api/.env
-    networks:
-      - defnetwork
     volumes:
       - ./private_api:/private_api
       - ./private_api/logs:/private_api/logs
     environment:
       - PYTHONPATH=/private_api
-
-  minio:
-    image: docker.io/bitnami/minio:2022
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    networks:
-      - defnetwork
-    volumes:
-      - 'minio_data:/data'
-    environment:
-      - MINIO_ROOT_USER=your_username
-      - MINIO_ROOT_PASSWORD=your_pasword
-      - MINIO_DEFAULT_BUCKETS=3
-networks:
-  defnetwork:
-    driver: bridge
