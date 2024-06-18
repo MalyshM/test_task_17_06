@@ -1,10 +1,11 @@
 import asyncio
 import io
+import os
 from contextlib import asynccontextmanager
 
 from aiobotocore.session import get_session
 from botocore.exceptions import ClientError
-
+from dotenv import load_dotenv
 
 class S3Client:
     def __init__(
@@ -69,33 +70,37 @@ class S3Client:
         except ClientError as e:
             print(f"Error deleting file: {e}")
 
-    async def get_file(self, object_name: str, destination_path: str):
+    async def get_file(self, object_name: str):
         try:
             async with self.get_client() as client:
                 response = await client.get_object(Bucket=self.bucket_name, Key=object_name)
                 data = await response["Body"].read()
-                with open(destination_path, "wb") as file:
-                    file.write(data)
-                print(f"File {object_name} downloaded to {destination_path}")
+                return data
+                # with open(destination_path, "wb") as file:
+                #     file.write(data)
+                # print(f"File {object_name} downloaded to {destination_path}")
         except ClientError as e:
             print(f"Error downloading file: {e}")
 
+    async def get_file_link(self, object_name: str) -> str:
+        try:
+            async with self.get_client() as client:
+                # resp = await client.get_object_acl(Bucket= self.bucket_name, Key=object_name)
+                # print(resp)
+                params = {"Bucket": self.bucket_name, "Key": object_name}
+                url = await client.generate_presigned_url(
+                    "get_object", Params=params, ExpiresIn=3600
+                )
+                return url
+        except ClientError as e:
+            print(f"Error getting file link: {e}")
+            return ""
+
+load_dotenv()
 
 s3_client = S3Client(
-    access_key="6c9ce664e79a4f4e8a4f78218909717d",
-    secret_key="237ebb2283b440428fed02e2fdcee260",
-    endpoint_url="https://s3.storage.selcloud.ru",  # для Selectel используйте https://s3.storage.selcloud.ru
-    bucket_name="test",
+    access_key=os.getenv("ACCESS_KEY"),
+    secret_key=os.getenv("SECRET_KEY"),
+    endpoint_url=os.getenv("ENDPOINT_URL"),
+    bucket_name=os.getenv("BUCKET_NAME"),
 )
-
-# async def main():
-
-#
-#     # Проверка, что мы можем загрузить, скачать и удалить файл
-#     await s3_client.upload_file("test.txt")
-#     await s3_client.get_file("test.txt", "text_local_file.txt")
-#     await s3_client.delete_file("test.txt")
-#
-#
-# if __name__ == "__main__":
-#     asyncio.run(main())
